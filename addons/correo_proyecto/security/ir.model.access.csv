@@ -1,0 +1,5 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_service_type_user,crm.service.type.user,model_crm_service_type,sales_team.group_sale_salesman,1,0,0,0
+access_service_type_manager,crm.service.type.manager,model_crm_service_type,sales_team.group_sale_manager,1,1,1,1
+access_service_type_task_user,crm.service.type.task.user,model_crm_service_type_task,sales_team.group_sale_salesman,1,0,0,0
+access_service_type_task_manager,crm.service.type.task.manager,model_crm_service_type_task,sales_team.group_sale_manager,1,1,1,1

@@ -1,0 +1,81 @@
+{
+  "id": "AlertasErrores01",
+  "name": "Alertas de errores",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "bbf24e96-f77a-5bbd-8e9a-b3643cf02c99",
+      "name": "Error",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "accessToken",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "={{ $env.SLACK_CANAL }}",
+          "mode": "name"
+        },
+        "text": "=:rotating_light: *Error en {{ $json.workflow.name }}*\nNodo: {{ $json.execution.lastNodeExecuted }}\n{{ $json.execution.error.message }}\n<{{ $json.execution.url }}|Ver ejecución>",
+        "otherOptions": {}
+      },
+      "id": "59c68876-9206-5322-a231-df994f3389b8",
+      "name": "Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        260,
+        -100
+      ],
+      "webhookId": "98edc1bf-390f-5013-9cdb-69895a15541b"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $env.ALERTAS_CORREO }}",
+        "subject": "=Error en {{ $json.workflow.name }}",
+        "emailType": "text",
+        "message": "=Flujo: {{ $json.workflow.name }}\nNodo: {{ $json.execution.lastNodeExecuted }}\nError: {{ $json.execution.error.message }}\nEjecución: {{ $json.execution.url }}",
+        "options": {}
+      },
+      "id": "7b037594-bcf3-5254-979f-aa61731b3c0f",
+      "name": "Gmail",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        260,
+        100
+      ],
+      "webhookId": "d7a82b79-274b-5e7a-b060-1f0ea09f8f55"
+    }
+  ],
+  "connections": {
+    "Error": {
+      "main": [
+        [
+          {
+            "node": "Slack",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "tags": []
+}

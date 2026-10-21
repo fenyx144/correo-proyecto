@@ -1,0 +1,22 @@
+{
+    "name": "Del correo al proyecto",
+    "version": "18.0.1.0.0",
+    "summary": "Oportunidades desde correo, cotización con control de stock y proyecto al ganar",
+    "category": "Sales/CRM",
+    "author": "Diego Rivas Revilla",
+    "website": "https://www.diegorivasrevilla.dev",
+    "license": "LGPL-3",
+    "depends": ["crm", "sale_management", "sale_crm", "stock", "project", "mail", "base_automation"],
+    "data": [
+        "security/ir.model.access.csv",
+        "data/crm_data.xml",
+        "data/product_data.xml",
+        "data/service_type_data.xml",
+        "data/automation_data.xml",
+        "views/service_type_views.xml",
+        "views/crm_lead_views.xml",
+    ],
+    "post_init_hook": "post_init_hook",
+    "installable": True,
+    "application": False,
+}

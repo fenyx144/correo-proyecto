@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="automation_oportunidad_ganada" model="base.automation">
+        <field name="name">Oportunidad ganada: crear proyecto</field>
+        <field name="model_id" ref="crm.model_crm_lead"/>
+        <field name="trigger">on_create_or_write</field>
+        <field name="trigger_field_ids" eval="[(6, 0, [ref('crm.field_crm_lead__stage_id')])]"/>
+        <field name="filter_pre_domain">[("stage_id.is_won", "=", False)]</field>
+        <field name="filter_domain">[("stage_id.is_won", "=", True), ("type", "=", "opportunity")]</field>
+        <field name="log_webhook_calls" eval="False"/>
+    </record>
+    <record id="action_webhook_oportunidad_ganada" model="ir.actions.server">
+        <field name="name">Enviar oportunidad ganada a n8n</field>
+        <field name="model_id" ref="crm.model_crm_lead"/>
+        <field name="base_automation_id" ref="automation_oportunidad_ganada"/>
+        <field name="usage">base_automation</field>
+        <field name="state">webhook</field>
+        <field name="webhook_url">http://n8n:5678/webhook/oportunidad-ganada</field>
+        <field name="webhook_field_ids" eval="[(6, 0, [
+            ref('crm.field_crm_lead__name'),
+            ref('crm.field_crm_lead__partner_id'),
+            ref('crm.field_crm_lead__user_id'),
+            ref('crm.field_crm_lead__expected_revenue'),
+            ref('correo_proyecto.field_crm_lead__service_type_id'),
+            ref('correo_proyecto.field_crm_lead__project_id'),
+        ])]"/>
+    </record>
+</odoo>

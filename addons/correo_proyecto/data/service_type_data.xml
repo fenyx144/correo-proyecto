@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="service_type_red" model="crm.service.type">
+        <field name="name">Instalación de red</field>
+        <field name="code">instalacion_red</field>
+        <field name="sequence">1</field>
+        <field name="description">Cableado estructurado, equipos de red y WiFi.</field>
+    </record>
+    <record id="service_type_red_t1" model="crm.service.type.task">
+        <field name="service_type_id" ref="service_type_red"/>
+        <field name="sequence">1</field>
+        <field name="name">Visita técnica y levantamiento</field>
+        <field name="days_offset">2</field>
+        <field name="user_id" ref="base.user_admin"/>
+    </record>
+    <record id="service_type_red_t2" model="crm.service.type.task">
+        <field name="service_type_id" ref="service_type_red"/>
+        <field name="sequence">2</field>
+        <field name="name">Plano de puntos de red</field>
+        <field name="days_offset">4</field>
+        <field name="user_id" ref="base.user_admin"/>
+    </record>
+    <record id="service_type_red_t3" model="crm.service.type.task">
+        <field name="service_type_id" ref="service_type_red"/>
+        <field name="sequence">3</field>
+        <field name="name">Cableado y montaje de gabinete</field>
+        <field name="days_offset">8</field>
+        <field name="user_id" ref="base.user_admin"/>
+    </record>
+    <record id="service_type_red_t4" model="crm.service.type.task">
+        <field name="service_type_id" ref="service_type_red"/>
+        <field name="sequence">4</field>
+        <field name="name">Configuración de switch y access points</field>
+        <field name="days_offset">10</field>
+        <field name="user_id" ref="base.user_admin"/>
+    </record>
+    <record id="service_type_red_t5" model="crm.service.type.task">
+        <field name="service_type_id" ref="service_type_red"/>
+        <field name="sequence">5</field>
+        <field name="name">Certificación de puntos y acta de entrega</field>
+        <field name="days_offset">12</field>
+        <field name="user_id" ref="base.user_admin"/>
+    </record>
+
+    <record id="service_type_cctv" model="crm.service.type">
+        <field name="name">Videovigilancia</field>
+        <field name="code">videovigilancia</field>
+        <field name="sequence">2</field>
+        <field name="description">Cámaras IP, grabadores y acceso remoto.</field>
+    </record>
+    <record id="service_type_cctv_t1" model="crm.service.type.task">
+        <field name="service_type_id" ref="service_type_cctv"/>
+        <field name="sequence">1</field>
+        <field name="name">Visita técnica y ubicación de cámaras</field>
+        <field name="days_offset">2</field>
+        <field name="user_id" ref="base.user_admin"/>
+    </record>
+    <record id="service_type_cctv_t2" model="crm.service.type.task">
+        <field name="service_type_id" ref="service_type_cctv"/>
+        <field name="sequence">2</field>
+        <field name="name">Instalación de cámaras y grabador</field>
+        <field name="days_offset">6</field>
+        <field name="user_id" ref="base.user_admin"/>
+    </record>
+    <record id="service_type_cctv_t3" model="crm.service.type.task">
+        <field name="service_type_id" ref="service_type_cctv"/>
+        <field name="sequence">3</field>
+        <field name="name">Configuración de acceso remoto</field>
+        <field name="days_offset">7</field>
+        <field name="user_id" ref="base.user_admin"/>
+    </record>
+    <record id="service_type_cctv_t4" model="crm.service.type.task">
+        <field name="service_type_id" ref="service_type_cctv"/>
+        <field name="sequence">4</field>
+        <field name="name">Capacitación y acta de entrega</field>
+        <field name="days_offset">8</field>
+        <field name="user_id" ref="base.user_admin"/>
+    </record>
+</odoo>

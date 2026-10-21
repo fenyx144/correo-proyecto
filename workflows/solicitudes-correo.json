@@ -1,0 +1,381 @@
+{
+  "id": "SolicitudesCorreo",
+  "name": "Solicitudes por correo",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "q": "in:inbox -from:me -category:promotions -category:social"
+        },
+        "options": {}
+      },
+      "id": "e46a64f7-cc16-5d46-8f36-ff96bcf00f9b",
+      "name": "Correo entrante",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const cfg = {\n  url: $env.ODOO_URL,\n  db: $env.ODOO_DB,\n  user: $env.ODOO_USER,\n  key: $env.ODOO_API_KEY,\n  publicUrl: $env.ODOO_PUBLIC_URL || $env.ODOO_URL,\n};\nconst rpc = async (service, method, args) => {\n  const res = await this.helpers.httpRequest({\n    method: 'POST',\n    url: `${cfg.url}/jsonrpc`,\n    json: true,\n    body: { jsonrpc: '2.0', method: 'call', params: { service, method, args } },\n  });\n  if (res.error) throw new Error(`Odoo: ${res.error.data?.message || res.error.message}`);\n  return res.result;\n};\nconst uid = await rpc('common', 'login', [cfg.db, cfg.user, cfg.key]);\nif (!uid) throw new Error('Odoo: usuario o API key incorrectos');\nconst odoo = (model, method, args, kwargs = {}) =>\n  rpc('object', 'execute_kw', [cfg.db, uid, cfg.key, model, method, args, kwargs]);\n\nconst m = $json;\nconst remitente = m.from?.value?.[0] || {};\nconst texto = (m.text || String(m.html || '').replace(/<style[\\s\\S]*?<\\/style>/gi, '').replace(/<[^>]+>/g, ' '))\n  .replace(/\\n{3,}/g, '\\n\\n')\n  .trim()\n  .slice(0, 15000);\n\nconst tipos = await odoo('crm.service.type', 'search_read', [[]], { fields: ['code', 'name'] });\nconst productos = await odoo('product.product', 'search_read',\n  [[['sale_ok', '=', true], ['is_storable', '=', true]]],\n  { fields: ['default_code', 'name'], limit: 500 });\n\nconst catalogoTipos = tipos.map((t) => `${t.code}: ${t.name}`).join('\\n');\nconst catalogoProductos = productos.map((p) => `${p.default_code || '-'}: ${p.name}`).join('\\n');\n\nconst instruccion = `Analiza el correo recibido por el área comercial.\nClasifícalo como \"solicitud\" si pide un servicio, una cotización o productos; \"consulta\" si solo pide información general; \"otro\" en cualquier otro caso (publicidad, notificaciones, proveedores, spam).\nExtrae los datos del cliente y de lo que necesita. Si un dato no aparece, devuelve null.\ntipo_servicio debe ser uno de estos códigos o null:\n${catalogoTipos}\nPara cada producto pedido, usa el código del catálogo cuando corresponda y la cantidad como número:\n${catalogoProductos}\nurgencia: \"alta\" si pide atención inmediata o en menos de una semana, \"media\" si da un plazo, \"baja\" en otro caso.\nfecha_deseada en formato YYYY-MM-DD. Fecha del correo: ${m.date || $now.toISODate()}.\nresumen: máximo tres oraciones, en español, con lo que el cliente necesita.`;\n\nconst correo = `De: ${remitente.name || ''} <${remitente.address || ''}>\nAsunto: ${m.subject || ''}\n\n${texto}`;\n\nconst tipoServicio = { type: 'STRING', nullable: true };\nif (tipos.length) tipoServicio.enum = tipos.map((t) => t.code);\n\nconst schema = {\n  type: 'OBJECT',\n  properties: {\n    clasificacion: { type: 'STRING', enum: ['solicitud', 'consulta', 'otro'] },\n    empresa: { type: 'STRING', nullable: true },\n    ruc: { type: 'STRING', nullable: true },\n    contacto: { type: 'STRING', nullable: true },\n    email: { type: 'STRING', nullable: true },\n    telefono: { type: 'STRING', nullable: true },\n    necesidad: { type: 'STRING', nullable: true },\n    tipo_servicio: tipoServicio,\n    productos: {\n      type: 'ARRAY',\n      items: {\n        type: 'OBJECT',\n        properties: {\n          codigo: { type: 'STRING', nullable: true },\n          nombre: { type: 'STRING' },\n          cantidad: { type: 'NUMBER' },\n        },\n        required: ['nombre', 'cantidad'],\n      },\n    },\n    urgencia: { type: 'STRING', enum: ['baja', 'media', 'alta'] },\n    fecha_deseada: { type: 'STRING', nullable: true },\n    resumen: { type: 'STRING' },\n  },\n  required: ['clasificacion', 'empresa', 'contacto', 'email', 'telefono', 'necesidad', 'tipo_servicio', 'productos', 'urgencia', 'fecha_deseada', 'resumen'],\n};\n\nreturn {\n  json: {\n    correo: {\n      id: m.id,\n      hilo: m.threadId || null,\n      remitente_email: (remitente.address || '').toLowerCase(),\n      remitente_nombre: remitente.name || null,\n      asunto: m.subject || '',\n      fecha: m.date || null,\n      texto,\n      html: m.html || null,\n    },\n    gemini: {\n      contents: [{ parts: [{ text: instruccion }, { text: correo }] }],\n      generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: schema },\n    },\n  },\n};"
+      },
+      "id": "fd2eba15-5153-548c-bc56-c234e1d78ba6",
+      "name": "Preparar consulta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googlePalmApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.gemini) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "7c86bd2c-79f2-54dc-bffe-216c2a2ccdd6",
+      "name": "Analizar correo (Gemini)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const correo = $('Preparar consulta').item.json.correo;\nconst texto = $json.candidates?.[0]?.content?.parts?.[0]?.text;\nif (!texto) throw new Error(`Gemini no devolvió datos para el correo ${correo.id}`);\nconst d = JSON.parse(texto);\n\nconst limpio = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);\nconst email = (limpio(d.email) || correo.remitente_email || '').toLowerCase() || null;\nconst fecha = /^\\d{4}-\\d{2}-\\d{2}$/.test(d.fecha_deseada || '') ? d.fecha_deseada : null;\n\nconst productos = (Array.isArray(d.productos) ? d.productos : [])\n  .map((p) => ({\n    codigo: limpio(p.codigo),\n    nombre: limpio(p.nombre) || limpio(p.codigo) || 'Producto sin nombre',\n    cantidad: Number(p.cantidad) || 0,\n  }))\n  .filter((p) => p.cantidad > 0);\n\nreturn {\n  json: {\n    correo,\n    clasificacion: d.clasificacion || 'otro',\n    empresa: limpio(d.empresa),\n    ruc: (limpio(d.ruc) || '').replace(/\\D/g, '') || null,\n    contacto: limpio(d.contacto) || correo.remitente_nombre,\n    email,\n    telefono: limpio(d.telefono),\n    necesidad: limpio(d.necesidad),\n    tipo_servicio: limpio(d.tipo_servicio),\n    productos,\n    urgencia: ['baja', 'media', 'alta'].includes(d.urgencia) ? d.urgencia : 'baja',\n    fecha_deseada: fecha,\n    resumen: limpio(d.resumen) || '',\n  },\n};"
+      },
+      "id": "8142c703-732e-5b4d-a082-7bb9e43c3f2f",
+      "name": "Interpretar respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "61867dce-aa76-5cfb-9737-02094fba61ba",
+              "leftValue": "={{ $json.clasificacion === 'solicitud' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "6f295d88-345f-5ded-8dd6-2f77c4f306ff",
+      "name": "¿Es solicitud?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "410ea36f-0df6-52f0-ad13-8ac2eeb295be",
+      "name": "No es solicitud",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const cfg = {\n  url: $env.ODOO_URL,\n  db: $env.ODOO_DB,\n  user: $env.ODOO_USER,\n  key: $env.ODOO_API_KEY,\n  publicUrl: $env.ODOO_PUBLIC_URL || $env.ODOO_URL,\n};\nconst rpc = async (service, method, args) => {\n  const res = await this.helpers.httpRequest({\n    method: 'POST',\n    url: `${cfg.url}/jsonrpc`,\n    json: true,\n    body: { jsonrpc: '2.0', method: 'call', params: { service, method, args } },\n  });\n  if (res.error) throw new Error(`Odoo: ${res.error.data?.message || res.error.message}`);\n  return res.result;\n};\nconst uid = await rpc('common', 'login', [cfg.db, cfg.user, cfg.key]);\nif (!uid) throw new Error('Odoo: usuario o API key incorrectos');\nconst odoo = (model, method, args, kwargs = {}) =>\n  rpc('object', 'execute_kw', [cfg.db, uid, cfg.key, model, method, args, kwargs]);\n\nconst s = $json;\n\nconst previas = await odoo('crm.lead', 'search_read',\n  [[['gmail_message_id', '=', s.correo.id]]],\n  { fields: ['id', 'name'], limit: 1, context: { active_test: false } });\nif (previas.length) {\n  return { json: { ...s, duplicada: true, lead_id: previas[0].id, lead_nombre: previas[0].name } };\n}\n\nconst [peru] = await odoo('res.country', 'search_read', [[['code', '=', 'PE']]], { fields: ['id'], limit: 1 });\n\nlet empresaId = false;\nif (s.empresa || s.ruc) {\n  const dominio = /^\\d{11}$/.test(s.ruc || '')\n    ? [['is_company', '=', true], '|', ['vat', '=', s.ruc], ['name', '=ilike', s.empresa || s.ruc]]\n    : [['is_company', '=', true], ['name', '=ilike', s.empresa]];\n  const [empresa] = await odoo('res.partner', 'search_read', [dominio], { fields: ['id'], limit: 1 });\n  empresaId = empresa\n    ? empresa.id\n    : await odoo('res.partner', 'create', [{\n        name: s.empresa || s.ruc,\n        vat: /^\\d{11}$/.test(s.ruc || '') ? s.ruc : false,\n        is_company: true,\n        customer_rank: 1,\n        country_id: peru ? peru.id : false,\n      }]);\n}\n\nlet contactoId = false;\nif (s.email) {\n  const [existente] = await odoo('res.partner', 'search_read',\n    [[['email', '=ilike', s.email], ['is_company', '=', false]]],\n    { fields: ['id', 'parent_id'], limit: 1 });\n  if (existente) {\n    contactoId = existente.id;\n    const cambios = {};\n    if (empresaId && !existente.parent_id) cambios.parent_id = empresaId;\n    if (s.telefono) cambios.phone = s.telefono;\n    if (Object.keys(cambios).length) await odoo('res.partner', 'write', [[contactoId], cambios]);\n  }\n}\nif (!contactoId && (s.contacto || s.email)) {\n  contactoId = await odoo('res.partner', 'create', [{\n    name: s.contacto || s.email,\n    email: s.email || false,\n    phone: s.telefono || false,\n    parent_id: empresaId,\n    type: 'contact',\n    customer_rank: 1,\n    country_id: peru ? peru.id : false,\n  }]);\n}\n\nreturn {\n  json: {\n    ...s,\n    duplicada: false,\n    empresa_id: empresaId || null,\n    contacto_id: contactoId || null,\n    partner_id: contactoId || empresaId || null,\n  },\n};"
+      },
+      "id": "bcb6f76c-ba30-588b-a5a9-3af4489a073e",
+      "name": "Contacto y duplicados",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2cb3de35-05dd-5f5a-9d7b-32cbd7606e33",
+              "leftValue": "={{ $json.duplicada }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0254d3f8-d414-5075-bdac-fc2bade22bfb",
+      "name": "¿Ya registrada?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1440,
+        -80
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "6cecc921-61fc-5ce2-97dd-184aaa5bf463",
+      "name": "Ya registrada",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1680,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const cfg = {\n  url: $env.ODOO_URL,\n  db: $env.ODOO_DB,\n  user: $env.ODOO_USER,\n  key: $env.ODOO_API_KEY,\n  publicUrl: $env.ODOO_PUBLIC_URL || $env.ODOO_URL,\n};\nconst rpc = async (service, method, args) => {\n  const res = await this.helpers.httpRequest({\n    method: 'POST',\n    url: `${cfg.url}/jsonrpc`,\n    json: true,\n    body: { jsonrpc: '2.0', method: 'call', params: { service, method, args } },\n  });\n  if (res.error) throw new Error(`Odoo: ${res.error.data?.message || res.error.message}`);\n  return res.result;\n};\nconst uid = await rpc('common', 'login', [cfg.db, cfg.user, cfg.key]);\nif (!uid) throw new Error('Odoo: usuario o API key incorrectos');\nconst odoo = (model, method, args, kwargs = {}) =>\n  rpc('object', 'execute_kw', [cfg.db, uid, cfg.key, model, method, args, kwargs]);\n\nconst s = $json;\nconst html = (t) => String(t || '')\n  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')\n  .replace(/\\n/g, '<br/>');\n\nlet tipo = null;\nif (s.tipo_servicio) {\n  [tipo] = await odoo('crm.service.type', 'search_read',\n    [[['code', '=', s.tipo_servicio]]], { fields: ['id', 'name'], limit: 1 });\n}\n\nconst lineas = [];\nconst faltantes = [];\nfor (const p of s.productos) {\n  let [producto] = p.codigo\n    ? await odoo('product.product', 'search_read',\n        [[['default_code', '=ilike', p.codigo], ['sale_ok', '=', true]]],\n        { fields: ['id', 'display_name', 'qty_available', 'uom_id'], limit: 1 })\n    : [];\n  if (!producto) {\n    [producto] = await odoo('product.product', 'search_read',\n      [[['name', 'ilike', p.nombre], ['sale_ok', '=', true]]],\n      { fields: ['id', 'display_name', 'qty_available', 'uom_id'], limit: 1 });\n  }\n  if (!producto) {\n    faltantes.push({ producto: p.nombre, cantidad: p.cantidad, disponible: 0, motivo: 'no registrado' });\n    continue;\n  }\n  lineas.push({ producto_id: producto.id, producto: producto.display_name, cantidad: p.cantidad });\n  if (producto.qty_available < p.cantidad) {\n    faltantes.push({ producto: producto.display_name, cantidad: p.cantidad, disponible: producto.qty_available, motivo: 'stock insuficiente' });\n  }\n}\n\nconst sinStock = faltantes.length > 0;\nconst etiquetas = [];\nif (sinStock) {\n  const [etiqueta] = await odoo('crm.tag', 'search_read', [[['name', '=', 'Sin stock']]], { fields: ['id'], limit: 1 });\n  etiquetas.push(etiqueta ? etiqueta.id : await odoo('crm.tag', 'create', [{ name: 'Sin stock', color: 1 }]));\n}\n\nconst cliente = s.empresa || s.contacto || s.email;\nconst titulo = s.correo.asunto ? s.correo.asunto.replace(/^((re|rv|fw|fwd)\\s*:\\s*)+/i, '') : (tipo?.name || 'Solicitud');\nconst detalle = s.productos.map((p) => `${p.cantidad} x ${p.nombre}${p.codigo ? ` (${p.codigo})` : ''}`).join('\\n');\n\nconst leadId = await odoo('crm.lead', 'create', [{\n  type: 'opportunity',\n  name: `${cliente}: ${titulo}`.slice(0, 200),\n  partner_id: s.partner_id || false,\n  partner_name: s.empresa || false,\n  contact_name: s.contacto || false,\n  email_from: s.email || false,\n  phone: s.telefono || false,\n  description: s.necesidad ? `<p>${html(s.necesidad)}</p>` : false,\n  request_origin: 'email',\n  urgency: s.urgencia,\n  priority: { alta: '2', media: '1', baja: '0' }[s.urgencia],\n  service_type_id: tipo ? tipo.id : false,\n  desired_date: s.fecha_deseada || false,\n  date_deadline: s.fecha_deseada || false,\n  ai_summary: s.resumen || false,\n  requested_items: detalle || false,\n  gmail_message_id: s.correo.id,\n  tag_ids: [[6, 0, etiquetas]],\n}]);\n\nconst adjuntos = [];\nif (s.correo.html) {\n  adjuntos.push(await odoo('ir.attachment', 'create', [{\n    name: 'Correo original.html',\n    datas: Buffer.from(s.correo.html, 'utf8').toString('base64'),\n    mimetype: 'text/html',\n    res_model: 'crm.lead',\n    res_id: leadId,\n  }]));\n}\n\nawait odoo('crm.lead', 'message_post', [[leadId]], {\n  body: `<p><b>De:</b> ${html(s.correo.remitente_nombre || '')} &lt;${html(s.correo.remitente_email)}&gt;<br/>`\n    + `<b>Asunto:</b> ${html(s.correo.asunto)}<br/><b>Fecha:</b> ${html(s.correo.fecha || '')}</p>`\n    + `<p>${html(s.correo.texto)}</p>`,\n  body_is_html: true,\n  attachment_ids: adjuntos,\n  message_type: 'comment',\n  subtype_xmlid: 'mail.mt_note',\n});\n\nlet pedido = null;\nif (lineas.length && s.partner_id) {\n  const pedidoId = await odoo('sale.order', 'create', [{\n    partner_id: s.partner_id,\n    opportunity_id: leadId,\n    origin: `Correo ${s.correo.id}`,\n    order_line: [\n      ...lineas.map((l) => [0, 0, { product_id: l.producto_id, product_uom_qty: l.cantidad }]),\n      ...faltantes.filter((f) => f.motivo === 'no registrado').map((f) => [0, 0, {\n        display_type: 'line_note',\n        name: `Producto no registrado: ${f.cantidad} x ${f.producto}`,\n      }]),\n    ],\n  }]);\n  [pedido] = await odoo('sale.order', 'read', [[pedidoId]], { fields: ['name', 'amount_total', 'currency_id'] });\n}\n\nif (sinStock) {\n  await odoo('crm.lead', 'message_post', [[leadId]], {\n    body: `Faltantes de stock: ${faltantes.map((f) => f.motivo === 'no registrado'\n      ? `${f.producto} (${f.cantidad}, no registrado)`\n      : `${f.producto} (pide ${f.cantidad}, disponible ${f.disponible})`).join('; ')}.`,\n    message_type: 'comment',\n    subtype_xmlid: 'mail.mt_note',\n  });\n}\n\nreturn {\n  json: {\n    lead_id: leadId,\n    cliente,\n    titulo,\n    urgencia: s.urgencia,\n    tipo_servicio: tipo?.name || null,\n    cotizacion: pedido?.name || null,\n    cotizacion_id: pedido?.id || null,\n    total: pedido?.amount_total ?? null,\n    sin_stock: sinStock,\n    faltantes,\n    faltantes_texto: faltantes\n      .map((f) => f.motivo === 'no registrado'\n        ? `• ${f.producto}: ${f.cantidad}, no registrado en Odoo`\n        : `• ${f.producto}: pide ${f.cantidad}, disponible ${f.disponible}`)\n      .join('\\n'),\n    enlace: `${cfg.publicUrl}/odoo/action-crm.crm_lead_action_pipeline/${leadId}`,\n  },\n};"
+      },
+      "id": "74e01620-8be3-58f2-817a-d88a61492309",
+      "name": "Crear oportunidad y cotización",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a09a172a-b176-58fc-8a00-d05b6fab4703",
+              "leftValue": "={{ $json.sin_stock }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1d4d1c7f-e163-5291-808a-271f41764eac",
+      "name": "¿Sin stock?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1920,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "accessToken",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "={{ $env.SLACK_CANAL }}",
+          "mode": "name"
+        },
+        "text": "=:warning: *Solicitud con faltantes de stock* · {{ $json.cliente }}\n{{ $json.titulo }}\n{{ $json.faltantes_texto }}\n{{ $json.cotizacion ? 'Cotización ' + $json.cotizacion + ' en borrador' : 'Sin cotización' }} · Urgencia {{ $json.urgencia }}\n<{{ $json.enlace }}|Abrir oportunidad>",
+        "otherOptions": {}
+      },
+      "id": "6cdfd2fd-afe4-56ec-beda-e982b5639d69",
+      "name": "Avisar en Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        2160,
+        -80
+      ],
+      "webhookId": "3d73c5f0-34ad-52af-b1f9-8fe7794b3a05"
+    }
+  ],
+  "connections": {
+    "Correo entrante": {
+      "main": [
+        [
+          {
+            "node": "Preparar consulta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar consulta": {
+      "main": [
+        [
+          {
+            "node": "Analizar correo (Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analizar correo (Gemini)": {
+      "main": [
+        [
+          {
+            "node": "Interpretar respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Interpretar respuesta": {
+      "main": [
+        [
+          {
+            "node": "¿Es solicitud?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es solicitud?": {
+      "main": [
+        [
+          {
+            "node": "Contacto y duplicados",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No es solicitud",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contacto y duplicados": {
+      "main": [
+        [
+          {
+            "node": "¿Ya registrada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Ya registrada?": {
+      "main": [
+        [
+          {
+            "node": "Ya registrada",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Crear oportunidad y cotización",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear oportunidad y cotización": {
+      "main": [
+        [
+          {
+            "node": "¿Sin stock?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Sin stock?": {
+      "main": [
+        [
+          {
+            "node": "Avisar en Slack",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "AlertasErrores01",
+    "timezone": "America/Lima"
+  },
+  "pinData": {},
+  "tags": []
+}

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="product_cable_utp" model="product.template">
+        <field name="name">Cable UTP Cat 6 (metro)</field>
+        <field name="default_code">UTP-C6</field>
+        <field name="type">consu</field>
+        <field name="is_storable" eval="True"/>
+        <field name="list_price">2.8</field>
+        <field name="uom_id" ref="uom.product_uom_meter"/>
+        <field name="uom_po_id" ref="uom.product_uom_meter"/>
+    </record>
+    <record id="product_switch_24" model="product.template">
+        <field name="name">Switch administrable 24 puertos PoE</field>
+        <field name="default_code">SW-24P</field>
+        <field name="type">consu</field>
+        <field name="is_storable" eval="True"/>
+        <field name="list_price">1450</field>
+    </record>
+    <record id="product_ap_wifi6" model="product.template">
+        <field name="name">Access point WiFi 6</field>
+        <field name="default_code">AP-AX</field>
+        <field name="type">consu</field>
+        <field name="is_storable" eval="True"/>
+        <field name="list_price">620</field>
+    </record>
+    <record id="product_camara_ip" model="product.template">
+        <field name="name">Cámara IP 4 MP domo</field>
+        <field name="default_code">CAM-4MP</field>
+        <field name="type">consu</field>
+        <field name="is_storable" eval="True"/>
+        <field name="list_price">380</field>
+    </record>
+    <record id="product_nvr_8" model="product.template">
+        <field name="name">Grabador NVR 8 canales</field>
+        <field name="default_code">NVR-8</field>
+        <field name="type">consu</field>
+        <field name="is_storable" eval="True"/>
+        <field name="list_price">890</field>
+    </record>
+    <record id="product_rack_12u" model="product.template">
+        <field name="name">Gabinete de pared 12U</field>
+        <field name="default_code">RK-12U</field>
+        <field name="type">consu</field>
+        <field name="is_storable" eval="True"/>
+        <field name="list_price">540</field>
+    </record>
+</odoo>

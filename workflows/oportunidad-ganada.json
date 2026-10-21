@@ -1,0 +1,179 @@
+{
+  "id": "OportunidadGanada",
+  "name": "Oportunidad ganada → proyecto",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "oportunidad-ganada",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "97e0bf06-07b3-5272-9c4d-bc376a8bd8c4",
+      "name": "Oportunidad ganada",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "oportunidad-ganada"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const cfg = {\n  url: $env.ODOO_URL,\n  db: $env.ODOO_DB,\n  user: $env.ODOO_USER,\n  key: $env.ODOO_API_KEY,\n  publicUrl: $env.ODOO_PUBLIC_URL || $env.ODOO_URL,\n};\nconst rpc = async (service, method, args) => {\n  const res = await this.helpers.httpRequest({\n    method: 'POST',\n    url: `${cfg.url}/jsonrpc`,\n    json: true,\n    body: { jsonrpc: '2.0', method: 'call', params: { service, method, args } },\n  });\n  if (res.error) throw new Error(`Odoo: ${res.error.data?.message || res.error.message}`);\n  return res.result;\n};\nconst uid = await rpc('common', 'login', [cfg.db, cfg.user, cfg.key]);\nif (!uid) throw new Error('Odoo: usuario o API key incorrectos');\nconst odoo = (model, method, args, kwargs = {}) =>\n  rpc('object', 'execute_kw', [cfg.db, uid, cfg.key, model, method, args, kwargs]);\n\nconst leadId = Number($json.body?._id || $json.body?.id);\nif (!leadId) throw new Error('El webhook no trae el ID de la oportunidad');\n\nconst [lead] = await odoo('crm.lead', 'read', [[leadId]],\n  { fields: ['name', 'partner_id', 'user_id', 'service_type_id', 'project_id', 'desired_date'] });\nif (!lead) throw new Error(`Oportunidad ${leadId} no encontrada`);\n\nif (lead.project_id) {\n  return { json: { lead_id: leadId, lead_nombre: lead.name, proyecto_existente: true, proyecto_id: lead.project_id[0] } };\n}\n\nconst pedidos = await odoo('sale.order', 'search_read',\n  [[['opportunity_id', '=', leadId], ['state', 'in', ['draft', 'sent', 'sale']]]],\n  { fields: ['id', 'name', 'state'], order: 'state desc, id desc', limit: 1 });\n\nlet pedido = null;\nlet entregas = [];\nif (pedidos.length) {\n  const p = pedidos[0];\n  if (p.state !== 'sale') await odoo('sale.order', 'action_confirm', [[p.id]]);\n  [pedido] = await odoo('sale.order', 'read', [[p.id]], { fields: ['name', 'state', 'amount_total', 'picking_ids'] });\n  if (pedido.picking_ids.length) {\n    entregas = await odoo('stock.picking', 'read', [pedido.picking_ids], { fields: ['name', 'state'] });\n  }\n}\n\nreturn {\n  json: {\n    lead_id: leadId,\n    lead_nombre: lead.name,\n    proyecto_existente: false,\n    partner_id: lead.partner_id ? lead.partner_id[0] : null,\n    cliente: lead.partner_id ? lead.partner_id[1] : null,\n    user_id: lead.user_id ? lead.user_id[0] : null,\n    service_type_id: lead.service_type_id ? lead.service_type_id[0] : null,\n    tipo_servicio: lead.service_type_id ? lead.service_type_id[1] : null,\n    pedido_id: pedido?.id || null,\n    pedido: pedido?.name || null,\n    pedido_estado: pedido?.state || null,\n    entregas: entregas.map((e) => ({ id: e.id, nombre: e.name, estado: e.state })),\n  },\n};"
+      },
+      "id": "21e2998b-5221-5d82-9fbb-9d0bd6b22176",
+      "name": "Confirmar venta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "7e42d2e8-24dc-5cb9-857b-5d6de58d0d65",
+              "leftValue": "={{ $json.proyecto_existente }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2bc61e4c-e13c-5ecc-951e-1f6f1c433171",
+      "name": "¿Proyecto existente?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "31f08a52-489d-5600-a09e-91b77d21d8fd",
+      "name": "Ya tiene proyecto",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        720,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const cfg = {\n  url: $env.ODOO_URL,\n  db: $env.ODOO_DB,\n  user: $env.ODOO_USER,\n  key: $env.ODOO_API_KEY,\n  publicUrl: $env.ODOO_PUBLIC_URL || $env.ODOO_URL,\n};\nconst rpc = async (service, method, args) => {\n  const res = await this.helpers.httpRequest({\n    method: 'POST',\n    url: `${cfg.url}/jsonrpc`,\n    json: true,\n    body: { jsonrpc: '2.0', method: 'call', params: { service, method, args } },\n  });\n  if (res.error) throw new Error(`Odoo: ${res.error.data?.message || res.error.message}`);\n  return res.result;\n};\nconst uid = await rpc('common', 'login', [cfg.db, cfg.user, cfg.key]);\nif (!uid) throw new Error('Odoo: usuario o API key incorrectos');\nconst odoo = (model, method, args, kwargs = {}) =>\n  rpc('object', 'execute_kw', [cfg.db, uid, cfg.key, model, method, args, kwargs]);\n\nconst s = $json;\nconst hoy = $now.setZone('America/Lima').startOf('day');\n\nconst plantilla = s.service_type_id\n  ? await odoo('crm.service.type.task', 'search_read',\n      [[['service_type_id', '=', s.service_type_id]]],\n      { fields: ['name', 'days_offset', 'user_id', 'description'], order: 'sequence, id' })\n  : [];\n\nconst habil = (fecha) => {\n  let f = fecha;\n  while (f.weekday > 5) f = f.plus({ days: 1 });\n  return f;\n};\n\nconst plazoFinal = habil(hoy.plus({ days: Math.max(0, ...plantilla.map((t) => t.days_offset)) }));\nconst proyectoId = await odoo('project.project', 'create', [{\n  name: s.lead_nombre,\n  partner_id: s.partner_id || false,\n  user_id: s.user_id || false,\n  date_start: hoy.toISODate(),\n  date: plazoFinal.toISODate(),\n  description: `<p>Oportunidad ganada${s.pedido ? `, pedido ${s.pedido}` : ''}.</p>`,\n}]);\n\nconst tareas = [];\nfor (const t of plantilla) {\n  const limite = habil(hoy.plus({ days: t.days_offset })).set({ hour: 18 }).toUTC();\n  const responsable = t.user_id ? t.user_id[0] : s.user_id;\n  tareas.push(await odoo('project.task', 'create', [{\n    project_id: proyectoId,\n    name: t.name,\n    user_ids: [[6, 0, responsable ? [responsable] : []]],\n    date_deadline: limite.toFormat('yyyy-MM-dd HH:mm:ss'),\n    partner_id: s.partner_id || false,\n    description: t.description || false,\n  }]));\n}\n\nawait odoo('crm.lead', 'write', [[s.lead_id], { project_id: proyectoId }]);\nawait odoo('crm.lead', 'message_post', [[s.lead_id]], {\n  body: `Proyecto creado con ${tareas.length} tareas${s.pedido ? `. Pedido ${s.pedido} confirmado` : ''}.`,\n  message_type: 'comment',\n  subtype_xmlid: 'mail.mt_note',\n});\n\nreturn {\n  json: {\n    ...s,\n    proyecto_id: proyectoId,\n    tareas: tareas.length,\n    fecha_fin: plazoFinal.toISODate(),\n    entregas_texto: s.entregas.map((e) => e.nombre).join(', '),\n    enlace_proyecto: `${cfg.publicUrl}/odoo/project/${proyectoId}/tasks`,\n    enlace_oportunidad: `${cfg.publicUrl}/odoo/action-crm.crm_lead_action_pipeline/${s.lead_id}`,\n  },\n};"
+      },
+      "id": "140af1ba-636a-5440-b9a2-6097d6c7c621",
+      "name": "Crear proyecto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "accessToken",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "={{ $env.SLACK_CANAL }}",
+          "mode": "name"
+        },
+        "text": "=:white_check_mark: *Oportunidad ganada* · {{ $json.lead_nombre }}\n{{ $json.pedido ? 'Pedido ' + $json.pedido + ' confirmado' + ($json.entregas_texto ? ', entrega ' + $json.entregas_texto : '') : 'Sin pedido de venta' }}\nProyecto con {{ $json.tareas }} tareas, fin previsto {{ $json.fecha_fin }}\n<{{ $json.enlace_proyecto }}|Abrir proyecto> · <{{ $json.enlace_oportunidad }}|Abrir oportunidad>",
+        "otherOptions": {}
+      },
+      "id": "e21b30b0-6079-56a5-93cf-9563247f0f35",
+      "name": "Avisar en Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        960,
+        60
+      ],
+      "webhookId": "823af03e-1256-505f-b8f6-92e710eb0ff0"
+    }
+  ],
+  "connections": {
+    "Oportunidad ganada": {
+      "main": [
+        [
+          {
+            "node": "Confirmar venta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmar venta": {
+      "main": [
+        [
+          {
+            "node": "¿Proyecto existente?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Proyecto existente?": {
+      "main": [
+        [
+          {
+            "node": "Ya tiene proyecto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Crear proyecto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear proyecto": {
+      "main": [
+        [
+          {
+            "node": "Avisar en Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "AlertasErrores01",
+    "timezone": "America/Lima"
+  },
+  "pinData": {},
+  "tags": []
+}

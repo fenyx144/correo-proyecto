@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es" data-tema="oscuro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Del correo al proyecto | Indicadores</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/static/estilos.css">
+</head>
+<body>
+
+  <header class="cabecera">
+    <div>
+      <p class="sobretitulo">Indicadores comerciales y operativos</p>
+      <h1>Del correo al proyecto</h1>
+    </div>
+    <div class="acciones">
+      <span class="estado" id="estado"><i></i><span id="actualizado">Cargando</span></span>
+      <a class="boton" href="http://localhost:3000" id="enlace-metabase" target="_blank" rel="noopener">Análisis en Metabase</a>
+      <button class="boton icono" id="tema" type="button" aria-label="Cambiar tema" title="Cambiar tema">
+        <svg class="sol" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg class="luna" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="rejilla">
+    <section class="kpis">
+      <article class="tarjeta kpi"><p>Oportunidades por correo</p><strong data-kpi="oportunidades_por_correo">0</strong><small id="kpi-conversion">&nbsp;</small></article>
+      <article class="tarjeta kpi"><p>Ventas confirmadas</p><strong data-kpi="ventas_confirmadas">0</strong><small id="kpi-ticket">&nbsp;</small></article>
+      <article class="tarjeta kpi destacado"><p>Monto vendido</p><strong data-kpi="monto_confirmado" data-formato="moneda">S/ 0.00</strong><small id="kpi-cotizado">&nbsp;</small></article>
+      <article class="tarjeta kpi"><p>Proyectos activos</p><strong data-kpi="proyectos_activos">0</strong><small id="kpi-tareas">&nbsp;</small></article>
+    </section>
+
+    <article class="tarjeta ancho-2">
+      <header><h2>Oportunidades por mes y origen</h2></header>
+      <div class="grafico"><canvas id="g-oportunidades"></canvas></div>
+    </article>
+
+    <article class="tarjeta">
+      <header><h2>Conversión por origen</h2></header>
+      <div id="conversion" class="conversion"></div>
+    </article>
+
+    <article class="tarjeta ancho-2">
+      <header><h2>Ventas por mes</h2></header>
+      <div class="grafico"><canvas id="g-ventas"></canvas></div>
+    </article>
+
+    <article class="tarjeta">
+      <header><h2>Tareas por estado</h2></header>
+      <div class="grafico dona"><canvas id="g-tareas"></canvas><div class="centro"><strong id="total-tareas">0</strong><span>tareas</span></div></div>
+    </article>
+
+    <article class="tarjeta ancho-3">
+      <header><h2>Tiempos del ciclo</h2><span class="nota">Promedio desde la llegada del correo</span></header>
+      <ol class="ciclo" id="ciclo"></ol>
+    </article>
+
+    <article class="tarjeta ancho-2">
+      <header><h2>Avance de proyectos</h2></header>
+      <ul class="proyectos" id="proyectos"></ul>
+    </article>
+
+    <article class="tarjeta">
+      <header><h2>Stock insuficiente</h2></header>
+      <div class="tabla-contenedor">
+        <table>
+          <thead><tr><th>Producto</th><th>Solicitado</th><th>Stock</th><th>Faltante</th></tr></thead>
+          <tbody id="stock"></tbody>
+        </table>
+      </div>
+    </article>
+  </main>
+
+  <footer class="pie">Datos de Odoo consultados con el rol de solo lectura. Actualización automática cada 60 segundos.</footer>
+
+  <script src="/static/vendor/chart.umd.min.js"></script>
+  <script src="/static/tablero.js"></script>
+</body>
+</html>
