@@ -1,6 +1,6 @@
 # Del correo al proyecto
 
-Gestión comercial en Odoo 18 desde el primer correo del cliente hasta el proyecto en ejecución. Un flujo de automatización en n8n lee las solicitudes que llegan a Gmail, una API de IA (Google Gemini) se encarga de la clasificación y extracción de datos, y Odoo registra la oportunidad, la cotización y, al ganarse, el proyecto con sus tareas. Los indicadores comerciales y operativos salen de consultas SQL directas a PostgreSQL y se publican en dos partes complementarias: Metabase, para el análisis y los reportes de autoservicio, y un tablero web propio, como pantalla operativa.
+Gestión comercial en Odoo 18 desde el primer correo del cliente hasta el proyecto en ejecución. Un flujo de automatización en n8n lee las solicitudes que llegan a Gmail, una API de IA (OpenAI) se encarga de la clasificación y extracción de datos, y Odoo registra la oportunidad, la cotización y, al ganarse, el proyecto con sus tareas. Los indicadores comerciales y operativos salen de consultas SQL directas a PostgreSQL y se publican en dos partes complementarias: Metabase, para el análisis y los reportes de autoservicio, y un tablero web propio, como pantalla operativa.
 
 ![Arquitectura](docs/arquitectura.png)
 
@@ -11,7 +11,7 @@ Diagrama editable: [docs/arquitectura.excalidraw](docs/arquitectura.excalidraw),
 ### Solicitudes por correo
 
 1. Revisa la bandeja de Gmail cada minuto.
-2. El nodo HTTP Request llama a la API REST de Gemini, que clasifica cada correo como solicitud, consulta u otro, y de las solicitudes extrae empresa, RUC, contacto, correo, teléfono, necesidad, tipo de servicio, productos con cantidades, urgencia, fecha deseada y un resumen. La clasificación usa los tipos de servicio y el catálogo de productos vigentes en Odoo.
+2. El nodo HTTP Request llama a la API de OpenAI (Chat Completions, modelo gpt-4o-mini), que clasifica cada correo como solicitud, consulta u otro, y de las solicitudes extrae empresa, RUC, contacto, correo, teléfono, necesidad, tipo de servicio, productos con cantidades, urgencia, fecha deseada y un resumen. La clasificación usa los tipos de servicio y el catálogo de productos vigentes en Odoo.
 3. Omite el correo si ya generó una oportunidad.
 4. Se conecta a Odoo por JSON-RPC sobre HTTP con la clave de API del usuario, busca la empresa por RUC o nombre y el contacto por correo; crea los que no existan.
 5. Crea la oportunidad con origen Correo automático, urgencia, prioridad, tipo de servicio, fecha deseada y resumen, y deja el correo original en el historial como nota.
@@ -44,7 +44,7 @@ El módulo `correo_proyecto` configura y personaliza CRM, Ventas, Inventario y P
 
 - Docker y Docker Compose.
 - Python 3 para los scripts de configuración de Metabase y de datos de ejemplo (solo usan la biblioteca estándar).
-- Clave de API de Google Gemini.
+- Clave de API de OpenAI.
 - Cuenta de Google con acceso al buzón comercial y credenciales OAuth2 de Google Cloud con la API de Gmail habilitada.
 - Aplicación de Slack con un token de bot (`xoxb-`) con el permiso `chat:write`, invitada al canal de avisos.
 
@@ -98,7 +98,7 @@ El módulo `correo_proyecto` configura y personaliza CRM, Ventas, Inventario y P
 
    | Credencial | Tipo en n8n | Nodos |
    | --- | --- | --- |
-   | Google Gemini | Google Gemini(PaLM) Api | Analizar correo (Gemini) |
+   | OpenAI | OpenAI API | Analizar correo (OpenAI) |
    | Gmail | Gmail OAuth2 API | Correo entrante, Gmail (Alertas de errores) |
    | Slack | Slack API, token de acceso `xoxb-` con `chat:write` | Avisar en Slack (ambos flujos), Slack (Alertas de errores) |
 
@@ -187,7 +187,7 @@ docker compose restart metabase
 
 - Los correos de la bandeja de entrada, excepto promociones, redes sociales y los enviados por la propia cuenta, se procesan en el minuto siguiente a su llegada. Las nuevas oportunidades aparecen en CRM > Ventas > Mi flujo con el filtro Desde correo; las cotizaciones, en Ventas > Pedidos > Presupuestos.
 - Al pulsar Ganado en una oportunidad, el pedido queda confirmado, la entrega aparece en Inventario y el proyecto en la aplicación Proyecto.
-- Para agregar un tipo de servicio, crearlo en CRM > Configuración > Tipos de servicio con un código y sus tareas. Gemini lo considera desde el siguiente correo.
+- Para agregar un tipo de servicio, crearlo en CRM > Configuración > Tipos de servicio con un código y sus tareas. El modelo lo considera desde el siguiente correo.
 
 ## Estructura
 
